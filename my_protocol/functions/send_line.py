@@ -11,9 +11,10 @@ from sys import stdin, stdout
 from os import read, write,getenv
 import sys
 
-def send_line(connection,messageToSend):
-    while len(messageToSend):
-        formatted_string = "sending string: {}\n".format(messageToSend)
+def send_line(connection,message_to_send,end_of_file,packet_size):
+    while len(message_to_send):
+        formatted_string = "sending string: {}\n".format(message_to_send)
         write(1,formatted_string.encode())
-        bytesSent = connection.send(messageToSend.encode())
-        messageToSend = messageToSend[bytesSent:]
+        message_to_send = "{};{}{}".format(message_to_send,end_of_file, packet_size)
+        bytesSent = connection.send(message_to_send.encode())
+        message_to_send = message_to_send[bytesSent:]

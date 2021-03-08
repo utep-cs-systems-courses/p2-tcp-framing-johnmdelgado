@@ -7,6 +7,7 @@ Version: 1.0 Initial Development
 
 This file will serve as a buffer and read in the desired number of bytes from the stdin 
 file descriptor(FD=0), it will then decode the buffer and return the decoded buffer.
+This code was taken from project 1. Please see resources section of readme.md
 """
 from os import read, write
 import sys

@@ -26,7 +26,7 @@ def get_prompt():
     return prompt_format
 
         
-def read_line(bytes_size,debug):
+def read_line(bytes_size,file_name,debug):
     prompt = get_prompt()
     write(1, prompt.encode())
     read_from_buffer = gc.get_char(bytes_size,debug)
@@ -35,6 +35,7 @@ def read_line(bytes_size,debug):
         write(2,formatted_string.encode())
     index = 0
     whole_line = ""
+    start_of_file = True
     while index < len(read_from_buffer):
         character = read_from_buffer[index]
         if debug:
@@ -45,7 +46,7 @@ def read_line(bytes_size,debug):
                 write(2,"New line detected".encode())
             write(2, ("{}\n".format(whole_line)).encode())
             connection = cc.new_connection()
-            sl.send_line(connection,read_from_buffer,True,len(read_from_buffer))
+            sl.send_line(connection,read_from_buffer,True,file_name,True,len(read_from_buffer))
             rl.receive_line(connection)
             whole_line =""
             write(1, prompt.encode())
@@ -71,7 +72,7 @@ def read_line(bytes_size,debug):
                 write(2,"nothing left in the buffer!!\n".encode())
                 end_of_file = True
             
-            sl.send_line(connection,read_from_buffer,end_of_file,len(read_from_buffer))
+            sl.send_line(connection,read_from_buffer,start_of_file,file_name,end_of_file,len(read_from_buffer))
             rl.receive_line(connection)
             formatted_string = "sending {} bytes\n".format(len(read_from_buffer))
             write(1, formatted_string.encode())                
@@ -79,5 +80,6 @@ def read_line(bytes_size,debug):
                 sys.exit(0)
             read_from_buffer = test_buffer
             index = 0
+            start_of_file = False
             continue
         index += 1

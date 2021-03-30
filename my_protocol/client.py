@@ -14,9 +14,17 @@ from functions import get_config as mc
 from os import write
 import sys
 import os
+import argparse
+
 if __name__ == '__main__':
 
+    #Import config
     config = mc.get_config()
+
+    #add commandline arguements for file name
+    parser=argparse.ArgumentParser()
+    parser.add_argument('--filename','-f', help='Filename of the file that you are transferring',default=config["defaults"]["fileName"])
+    args=parser.parse_args()
 
     #inialize variables from config file
     debug = config["debugging"]["debug"]
@@ -27,4 +35,4 @@ if __name__ == '__main__':
         print(f"Stdout uses file descriptor {sys.stdout.fileno()}\n")
     #get filedescriptors for stdin/stdout
     while 1:
-        gl.read_line(bytes_to_read,debug)
+        gl.read_line(bytes_to_read,args.filename,debug)

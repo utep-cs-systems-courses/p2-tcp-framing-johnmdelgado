@@ -11,6 +11,7 @@ serverDefaults:
   listenAddress: ''       # Symbolic name meaning all available interfaces
   usage: False
   downloadFilePath: "./data/received_files/"
+  no_of_threads: 2
 
 debugging:
   debug: False

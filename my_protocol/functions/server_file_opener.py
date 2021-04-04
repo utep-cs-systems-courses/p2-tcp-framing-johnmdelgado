@@ -18,7 +18,7 @@ def file_opener(file_name):
     #get the default file path and then append the file name to the end
     formatted_file_path = "{}{}".format(config["serverDefaults"]["downloadFilePath"],file_name)
 
-    file_descriptor = os.open(formatted_file_path, os.O_CREAT | os.O_WRONLY)
-    os.set_inheritable(1, True)
+    file_descriptor = os.open(formatted_file_path, os.O_CREAT | os.O_WRONLY | os.O_APPEND)
+    os.set_inheritable(file_descriptor, True)
 
     return file_descriptor

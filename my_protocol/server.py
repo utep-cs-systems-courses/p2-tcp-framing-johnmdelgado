@@ -20,12 +20,10 @@ import threading
 import queue
 
 class myThread (threading.Thread):
-   def __init__(self, threadID, name, addr,conn, queue):
+   def __init__(self, threadID, name, queue):
       threading.Thread.__init__(self)
       self.threadID = threadID
       self.name = name
-      self.addr = addr
-      self.conn = conn
       self.queue = queue
 
    def run(self):
@@ -33,7 +31,7 @@ class myThread (threading.Thread):
       #print("trying test process data")
       #process_data(self.name, self.queue)
       print("trying to process message")
-      process_message(self.name,self.queue, self.addr, self.conn)
+      process_message(self.name,self.queue,)
       print("Exiting " + self.name)
 
 def process_data(threadName, queue):
@@ -47,20 +45,18 @@ def process_data(threadName, queue):
         transfer_lock.release()
         print("releasing lock")
 
-def process_message(thread_name, queue,conn,addr):
+def process_message(thread_name, queue):
     print("aquiring lock for: {}".format(thread_name))
     transfer_lock.acquire()
-    print("here is the work queue:")
-    for q in work_queue:
-        print(q)
+    print("here is the queue:")
+    print(queue)
 
     if not work_queue.empty():
-        data = queue.get()
-        transfer_lock.release()
-        print("%s processing %s" % (thread_name, data))
+        conn,addr = queue.get()
+        print("%s processing connection: %s and address: %s" % (thread_name, conn,addr))
 
         while 1:
-            conn.recv(1024).decode()
+            data = conn.recv(1024).decode()
             if len(data) == 0:
                 print("Zero length read, nothing to send, terminating")
                 break
@@ -92,6 +88,7 @@ def process_message(thread_name, queue,conn,addr):
                 send_message = "Echoing %s" % message_details["message_received"]
                 file_descriptor = sfo.file_opener(message_details["file_name"])
                 os.write(file_descriptor,message_details["message_received"].encode())
+                transfer_lock.release()
 
             print("Received '%s', sending '%s'" % (message_details["message_received"], send_message))
             while len(send_message):
@@ -100,7 +97,7 @@ def process_message(thread_name, queue,conn,addr):
             # if the end of the file has been received then we can close the file descriptor
             if message_details["end_of_file"]:
                 print("End of file indicator received")
-                in_transfer_threads.remove(message_details["file_name"])
+                in_transfer_threads.remove(thread)
                 os.close(file_descriptor)
                 break
         conn.shutdown(socket.SHUT_WR)
@@ -137,33 +134,35 @@ if __name__ == '__main__':
     in_transfer_threads = set() 
     work_queue = queue.Queue()
     thread_id = 1
+    num_of_threads = config["serverDefaults"]["no_of_threads"]
+
+
 
     print("Listener Started")
     while 1:
+        print("Starting Threads")
+        for threads in range(num_of_threads):
+            thread_name = "thread#{}".format(thread_id)
+            #print('Connected by: {}. Starting new thread: {}.'.format(addr,thread_name))
+            thread = myThread(thread_id,thread_name,work_queue)
+            thread.start()
+            in_transfer_threads.add(thread)
+            thread_id += 1
+
+        print("started thead: {}".format(thread_name))
         print("listening...")
-        conn, addr = s.accept()  # wait until incoming connection request (and accept it)
-        thread_name = "thread#{}".format(thread_id)
-        print('Connected by: {}. Starting new thread: {}.'.format(addr,thread_name))
-        thread = myThread(thread_id,thread_name,addr,conn,work_queue)
-        thread.start()
-        in_transfer_threads.add(thread)
-        thread_id += 1
-
-        print("Here is the current thread info: {}".format(thread))
-        print("Here is the thread queue: {}".format(in_transfer_threads))
-
         #Add to the queue
         transfer_lock.acquire()
-        work_queue.put(thread)
+        work_queue.put(s.accept())
         transfer_lock.release()
 
         #wait for the queue to empty
-        while not work_queue.empty():
-            pass
+        #while not work_queue.empty():
+        #    pass
 
         # Wait for all threads to complete
-        for thread in in_transfer_threads:
-            thread.join()
+       # for thread in in_transfer_threads:
+        #    thread.join()
 
         print("all threads completed!")
 

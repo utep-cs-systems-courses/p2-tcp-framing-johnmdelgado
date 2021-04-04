@@ -1,5 +1,6 @@
 defaults:
   bytesToRead: 100
+  fileName: "JohnsFile.txt"
 
 clientDefaults:
   serverPort: "127.0.0.1:50001"
@@ -9,6 +10,8 @@ serverDefaults:
   listenPort: 50001
   listenAddress: ''       # Symbolic name meaning all available interfaces
   usage: False
+  downloadFilePath: "./data/received_files/"
+  no_of_threads: 2
 
 debugging:
   debug: False

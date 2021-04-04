@@ -9,11 +9,103 @@ Version: 1.0 Initial Development
 This is the main executeable file for the server
 """
 from functions import get_config as gc
-from functions import test_end_of_file as eof
+from functions import parse_message_details as pmd
+from functions import server_file_opener as sfo
+from functions import test_in_transfer as it
 from os import write
 import sys
 import os
 import socket
+import threading
+import queue
+
+class myThread (threading.Thread):
+   def __init__(self, threadID, name, queue):
+      threading.Thread.__init__(self)
+      self.threadID = threadID
+      self.name = name
+      self.queue = queue
+
+   def run(self):
+      print("Starting " + self.name)
+      #print("trying test process data")
+      #process_data(self.name, self.queue)
+      print("trying to process message")
+      process_message(self.name,self.queue,)
+      print("Exiting " + self.name)
+
+def process_data(threadName, queue):
+    transfer_lock.acquire()
+
+    if not work_queue.empty():
+        data = queue.get()
+        transfer_lock.release()
+        print("whoa this is in the test test thread!%s processing %s" % (threadName, data))
+    else:
+        transfer_lock.release()
+        print("releasing lock")
+
+def process_message(thread_name, queue):
+    print("aquiring lock for: {}".format(thread_name))
+    transfer_lock.acquire()
+    print("here is the queue:")
+    print(queue)
+
+    if not work_queue.empty():
+        conn,addr = queue.get()
+        print("%s processing connection: %s and address: %s" % (thread_name, conn,addr))
+
+        while 1:
+            data = conn.recv(1024).decode()
+            if len(data) == 0:
+                print("Zero length read, nothing to send, terminating")
+                break
+            if len(data) == (bytes_size + 1):
+                print("Larger packet than expected was received")
+                break
+
+            # break down the message with our appended message details
+            message_details = pmd.parse_message_details(data)
+            print(message_details)
+            
+            # check if start of file
+            if message_details["start_of_file"]:  
+                print("This packet is the start of the file. We need to open a file descriptor using the name of file value to store the information")                                 
+
+            if len(data) < message_details["packet_size"]:
+                # if the length of data is less than the expected packet size reach back out to client and say to 
+                # resend data
+                print("Packet size is less than expected. sending error to client to resend data.")
+                send_message = "checksum failed. Resend failed packet"
+
+            # check if file is already in the process of being transferred
+            # elif it.test_in_transfer(message_details["file_name"]):
+            #     print("This file is currently in process and can not be received right now")
+            #     send_message = "This file is currently in process and can not be received right now"
+
+            # if not in transfer and the packet size is expected, open the file and write to it 
+            else:
+                send_message = "Echoing %s" % message_details["message_received"]
+                file_descriptor = sfo.file_opener(message_details["file_name"])
+                os.write(file_descriptor,message_details["message_received"].encode())
+                transfer_lock.release()
+
+            print("Received '%s', sending '%s'" % (message_details["message_received"], send_message))
+            while len(send_message):
+                bytesSent = conn.send(send_message.encode())
+                send_message = send_message[bytesSent:0]
+            # if the end of the file has been received then we can close the file descriptor
+            if message_details["end_of_file"]:
+                print("End of file indicator received")
+                in_transfer_threads.remove(thread)
+                os.close(file_descriptor)
+                break
+        conn.shutdown(socket.SHUT_WR)
+        conn.close()
+    else:
+        transfer_lock.release()
+        print("releasing lock")
+
 if __name__ == '__main__':
     print("Starting server.....")
     print("Reading configuration file...")
@@ -37,50 +129,43 @@ if __name__ == '__main__':
     s.bind((listenAddr, listenPort))
     s.listen(1)              # allow only one outstanding request
     # s is a factory for connected sockets
+    # initilize threading set
+    transfer_lock = threading.Lock()
+    in_transfer_threads = set() 
+    work_queue = queue.Queue()
+    thread_id = 1
+    num_of_threads = config["serverDefaults"]["no_of_threads"]
+
+
 
     print("Listener Started")
-    whole_file = ""
     while 1:
+        print("Starting Threads")
+        for threads in range(num_of_threads):
+            thread_name = "thread#{}".format(thread_id)
+            #print('Connected by: {}. Starting new thread: {}.'.format(addr,thread_name))
+            thread = myThread(thread_id,thread_name,work_queue)
+            thread.start()
+            in_transfer_threads.add(thread)
+            thread_id += 1
+
+        print("started thead: {}".format(thread_name))
         print("listening...")
-        conn, addr = s.accept()  # wait until incoming connection request (and accept it)
-        print('Connected by', addr)
-        while 1:
-            data = conn.recv(1024).decode()
-            if len(data) == 0:
-                print("Zero length read, nothing to send, terminating")
-                break
-            if len(data) == (bytes_size + 1):
-                print("Larger packet than expected was received")
-                break                                 
-            message_recevied = data.rsplit(';',1)[0]
-            packet_infomation = (data.rsplit(';',1)[1]).strip()
-            end_of_file_ind = (packet_infomation.split('e')[0]).strip()
-            packet_size = int((packet_infomation.split('e')[1]).strip())
-            # check the second to last byte of the received data for end of file ind
-            test_eof = eof.test_end_of_file(end_of_file_ind)
-            print("eof is: {}\n".format(test_eof))
-            # check last byte of packet for packet size
-            print("packet size is: {}\n".format(packet_size))
-            # remove values from byte array
-            if len(data) < packet_size:
-                # if the length of data is less than the expected packet size reach back out to client and say to 
-                # resend data
-                print("Packet size is less than expected. sending error to client to resend data.")
-                send_message = "checksum failed. Resend failed packet"
-            else:
-                send_message = "Echoing %s" % message_recevied
-            whole_file += message_recevied
-            print("Received '%s', sending '%s'" % (message_recevied, send_message))
-            while len(send_message):
-                bytesSent = conn.send(send_message.encode())
-                send_message = send_message[bytesSent:0]
-            if test_eof:
-                print("End of file indicator received")
-                print("whole file is:")
-                print(whole_file)                
-                whole_file= ""
-                break                
-            
-        conn.shutdown(socket.SHUT_WR)
-        conn.close()
+        #Add to the queue
+        transfer_lock.acquire()
+        work_queue.put(s.accept())
+        transfer_lock.release()
+
+        #wait for the queue to empty
+        #while not work_queue.empty():
+        #    pass
+
+        # Wait for all threads to complete
+       # for thread in in_transfer_threads:
+        #    thread.join()
+
+        print("all threads completed!")
+
+
+        #process_message(in_transfer_threads,conn,addr)
 
